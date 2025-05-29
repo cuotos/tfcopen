@@ -85,13 +85,14 @@ func findConfig() (*Config, error) {
 
 		if _, err := os.Stat(filepath.Join(currentDir, ".git")); err == nil {
 			fmt.Println("Found git root, guessing the terraform cloud search string from its name")
-			return &Config{Workspace: filepath.Base(currentDir)}, nil
+			// Use Search instead of Workspace
+			return &Config{Search: filepath.Base(currentDir)}, nil
 		}
 
 		currentDir = filepath.Dir(currentDir)
 	}
 
-	return nil, fmt.Errorf("no valid configuration found. giving up")
+	return nil, fmt.Errorf("reached / without finding a .tfcopen file. cannot continue")
 }
 
 func hasKnownKeys(cfg *Config) bool {
