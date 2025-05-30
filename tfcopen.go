@@ -67,7 +67,9 @@ func findConfig() (*Config, error) {
 				return nil, fmt.Errorf("error reading config: %v", err)
 			}
 			if !hasKnownKeys(cfg) {
-				return nil, fmt.Errorf("config file found at %s but contains none of the expected keys (workspace, search, project). please check for typos", configFilePath)
+				// return the config anyway as it might have the org in which is used to print the registry url,
+				// if that was what the user asked for
+				return cfg, fmt.Errorf("config file found at %s but contains none of the expected keys (workspace, search, project). please check for typos", configFilePath)
 			}
 			return cfg, nil
 		}
