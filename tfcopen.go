@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,6 +28,8 @@ func main() {
 	printFlagShort := flag.Bool("p", false, "Print the URL instead of opening it (shorthand)")
 	versionFlag := flag.Bool("version", false, "Print version and exit")
 	versionFlagShort := flag.Bool("v", false, "Print version and exit (shorthand)")
+	registryFlag := flag.Bool("registry", false, "Open the TFC private module registry")
+	registryFlagShort := flag.Bool("r", false, "Open the TFC private module registry (shorthand)")
 	flag.Parse()
 
 	if *versionFlag || *versionFlagShort {
@@ -35,30 +38,15 @@ func main() {
 	}
 
 	printOnly := *printFlag || *printFlagShort
-	handleCommand(printOnly)
-}
+	showRegistry := *registryFlag || *registryFlagShort
 
-func handleCommand(printOnly bool) {
-	cfg, err := findConfig()
+	url, err := getUrl(showRegistry)
+
 	if err != nil {
-		fmt.Println(err)
-		return
+		log.Fatal(err)
 	}
 
-	org := resolveOrg(cfg)
-	if org == "" {
-		fmt.Println("error: TFCOPEN_DEFAULT_ORG environment variable is not set and no organization is specified in the config")
-		return
-	}
-
-	uri := buildURI(cfg)
-	openURL := fmt.Sprintf("%s%s%s", TFCURL, org, uri)
-
-	if printOnly {
-		fmt.Println(openURL)
-	} else {
-		OpenURL(openURL)
-	}
+	openOrPrintURL(url, printOnly)
 }
 
 func findConfig() (*Config, error) {
@@ -68,6 +56,7 @@ func findConfig() (*Config, error) {
 	}
 
 	for currentDir != "/" {
+		// Try to find .tfcopen file
 		configFilePath := filepath.Join(currentDir, ".tfcopen")
 		if fileInfo, err := os.Stat(configFilePath); err == nil {
 			if fileInfo.Size() == 0 {
@@ -83,9 +72,9 @@ func findConfig() (*Config, error) {
 			return cfg, nil
 		}
 
+		// Check for git directory and use its name as search term if found
 		if _, err := os.Stat(filepath.Join(currentDir, ".git")); err == nil {
-			fmt.Println("Found git root, guessing the terraform cloud search string from its name")
-			// Use Search instead of Workspace
+			fmt.Println("found git root, guessing the terraform cloud search string from its name")
 			return &Config{Search: filepath.Base(currentDir)}, nil
 		}
 
@@ -95,18 +84,55 @@ func findConfig() (*Config, error) {
 	return nil, fmt.Errorf("reached / without finding a .tfcopen file. cannot continue")
 }
 
+// handleCommand and handleRegistryCommand have similar URL opening logic
+func openOrPrintURL(url string, printOnly bool) {
+	if printOnly {
+		fmt.Println(url)
+	} else {
+		OpenURL(url)
+	}
+}
+
+func getUrl(registry bool) (string, error) {
+	cfg, err := findConfig()
+	if err != nil && !registry {
+		return "", err
+	}
+
+	org, err := resolveOrg(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	var uri string
+	if registry {
+		uri = "/registry/private/modules"
+	} else {
+		uri = buildWorkspacesURI(cfg)
+	}
+	openURL := fmt.Sprintf("%s%s%s", TFCURL, org, uri)
+
+	return openURL, nil
+}
+
 func hasKnownKeys(cfg *Config) bool {
 	return cfg.Workspace != "" || cfg.Search != "" || cfg.Project != ""
 }
 
-func resolveOrg(cfg *Config) string {
-	if cfg.Org != "" {
-		return cfg.Org
+func resolveOrg(cfg *Config) (string, error) {
+	if cfg != nil && cfg.Org != "" {
+		return cfg.Org, nil
 	}
-	return os.Getenv("TFCOPEN_DEFAULT_ORG")
+
+	if org := os.Getenv("TFCOPEN_DEFAULT_ORG"); org != "" {
+		return org, nil
+	}
+
+	return "", fmt.Errorf("error: no org was found in any config file and the TFCOPEN_DEFAULT_ORG environment variable is not set. we cannot generate a link without knowing this")
 }
 
-func buildURI(cfg *Config) string {
+func buildWorkspacesURI(cfg *Config) string {
+
 	switch {
 	case cfg.Workspace != "":
 		return fmt.Sprintf("/workspaces/%s", cfg.Workspace)

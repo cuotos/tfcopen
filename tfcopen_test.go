@@ -4,6 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHasKnownKeys(t *testing.T) {
@@ -20,29 +23,23 @@ func TestHasKnownKeys(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := hasKnownKeys(&tt.cfg)
-			if got != tt.want {
-				t.Errorf("hasKnownKeys() = %v, want %v", got, tt.want)
-			}
+			actual := hasKnownKeys(&tt.cfg)
+			assert.Equal(t, tt.want, actual)
 		})
 	}
 }
 
 func TestResolveOrg(t *testing.T) {
-	// Save and restore env
-	oldEnv := os.Getenv("TFCOPEN_DEFAULT_ORG")
-	defer os.Setenv("TFCOPEN_DEFAULT_ORG", oldEnv)
-
-	os.Setenv("TFCOPEN_DEFAULT_ORG", "envorg")
+	t.Setenv("TFCOPEN_DEFAULT_ORG", "envorg")
 	cfg := Config{}
-	if got := resolveOrg(&cfg); got != "envorg" {
-		t.Errorf("resolveOrg() = %v, want envorg", got)
-	}
+	actual, err := resolveOrg(&cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "envorg", actual)
 
 	cfg = Config{Org: "cfgorg"}
-	if got := resolveOrg(&cfg); got != "cfgorg" {
-		t.Errorf("resolveOrg() = %v, want cfgorg", got)
-	}
+	actual, err = resolveOrg(&cfg)
+	require.NoError(t, err)
+	assert.Equal(t, "cfgorg", actual)
 }
 
 func TestBuildURI(t *testing.T) {
@@ -59,10 +56,8 @@ func TestBuildURI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := buildURI(&tt.cfg)
-			if got != tt.want {
-				t.Errorf("buildURI() = %v, want %v", got, tt.want)
-			}
+			actual := buildWorkspacesURI(&tt.cfg)
+			assert.Equal(t, tt.want, actual)
 		})
 	}
 }
@@ -71,22 +66,16 @@ func TestReadConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	cfgPath := filepath.Join(tmpDir, ".tfcopen")
 	content := []byte("workspace: testws\norg: testorg\n")
-	if err := os.WriteFile(cfgPath, content, 0644); err != nil {
-		t.Fatalf("failed to write temp config: %v", err)
-	}
+	err := os.WriteFile(cfgPath, content, 0644)
+	require.NoError(t, err, "failed to write temp config")
 
 	cfg, err := ReadConfig(cfgPath)
-	if err != nil {
-		t.Fatalf("ReadConfig() error = %v", err)
-	}
-	if cfg.Workspace != "testws" || cfg.Org != "testorg" {
-		t.Errorf("ReadConfig() = %+v, want workspace=testws, org=testorg", cfg)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "testws", cfg.Workspace)
+	assert.Equal(t, "testorg", cfg.Org)
 }
 
 func TestReadConfig_FileNotFound(t *testing.T) {
 	_, err := ReadConfig("nonexistent.yaml")
-	if err == nil {
-		t.Error("expected error for missing file, got nil")
-	}
+	assert.Error(t, err, "expected error for missing file")
 }
