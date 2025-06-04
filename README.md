@@ -1,7 +1,7 @@
-# tfcopen-go
+# tfcopen
 
 ## Overview
-`tfcopen-go` is a command-line tool that simplifies the process of accessing Terraform Cloud workspaces and projects directly from your terminal. By reading configuration from a `.tfcopen` file, it constructs the appropriate URL and opens it in your default web browser.
+`tfcopen` is a command-line tool that simplifies the process of accessing Terraform Cloud workspaces and projects directly from your terminal. By reading configuration from a `.tfcopen` file, it constructs the appropriate URL and opens it in your default web browser.
 
 ## Features
 - Reads configuration from a `.tfcopen` file.
@@ -9,12 +9,17 @@
 - Automatically detects the operating system to open URLs in the appropriate browser.
 
 ## Installation
-To install `tfcopen-go`, clone the repository and build the project:
+To install `tfcopen`, clone the repository and build the project:
+
+```bash
+brew tap cuotos/tap
+brew install tfcopen
+```
 
 ```bash
 git clone <repository-url>
-cd tfcopen-go
-go build -o tfcopen ./cmd/tfcopen.go
+cd tfcopen
+go install .
 ```
 
 ## Usage
@@ -24,10 +29,21 @@ To use the application, navigate to the directory containing your `.tfcopen` fil
 ./tfcopen
 ```
 
+`registry` or `-r` will open the private terraform registry pages. This uses the `org: ` field in the found `.tfcopen` file, or the `TFCOPEN_DEFAULT_ORG` environment variable.
+
+```bash
+./tfcopen --registry
+https://app.terraform.io/app/OrgName/registry/private/modules
+```
+
 You can also use the `--print` or `-p` flag to print the constructed URL without opening it:
 
 ```bash
 ./tfcopen --print
+https://app.terraform.io/app/OrgName/workspaces?search=workspace-names
+or
+https://app.terraform.io/app/OrgName/projects/prj-fAQqxxxxxxxxjxzB
+etc...
 ```
 
 ## Configuration
