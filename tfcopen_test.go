@@ -50,7 +50,7 @@ func TestBuildURI(t *testing.T) {
 	}{
 		{"workspace", Config{Workspace: "ws"}, "/workspaces/ws"},
 		{"search", Config{Search: "foo"}, "/workspaces?search=foo"},
-		{"project", Config{Project: "bar"}, "/projects/bar"},
+		{"project", Config{Project: "bar"}, "/projects/bar/workspaces"},
 		{"none", Config{}, ""},
 	}
 

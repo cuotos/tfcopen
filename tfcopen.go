@@ -141,7 +141,7 @@ func buildWorkspacesURI(cfg *Config) string {
 	case cfg.Search != "":
 		return fmt.Sprintf("/workspaces?search=%s", cfg.Search)
 	case cfg.Project != "":
-		return fmt.Sprintf("/projects/%s", cfg.Project)
+		return fmt.Sprintf("/projects/%s/workspaces", cfg.Project)
 	default:
 		return ""
 	}
