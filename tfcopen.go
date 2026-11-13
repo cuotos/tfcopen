@@ -46,6 +46,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// an empty url means the matches were already printed for the user to pick from
+	if url == "" {
+		return
+	}
+
 	openOrPrintURL(url, printOnly)
 }
 
@@ -55,16 +60,24 @@ func findConfig() (*Config, error) {
 		return nil, fmt.Errorf("error getting current directory: %v", err)
 	}
 
+	globalPath, _ := globalConfigPath()
+
 	for currentDir != "/" {
-		// Try to find .tfcopen file
+		// Try to find .tfcopen file. ~/.tfcopen is the global config, not a workspace config, so skip it.
 		configFilePath := filepath.Join(currentDir, ".tfcopen")
-		if fileInfo, err := os.Stat(configFilePath); err == nil {
+		if fileInfo, err := os.Stat(configFilePath); err == nil && configFilePath != globalPath {
 			if fileInfo.Size() == 0 {
 				return nil, fmt.Errorf("config file found at %s but it is empty. please add configuration keys", configFilePath)
 			}
 			cfg, err := ReadConfig(configFilePath)
 			if err != nil {
 				return nil, fmt.Errorf("error reading config: %v", err)
+			}
+			if !hasKnownKeys(cfg) && hasSettingKeys(cfg) {
+				// only settings like site or org, so search by the folder name as if there was no file
+				fmt.Fprintln(os.Stderr, "no workspace, search or project in .tfcopen, searching by the folder name")
+				cfg.Search = filepath.Base(currentDir)
+				return cfg, nil
 			}
 			if !hasKnownKeys(cfg) {
 				// return the config anyway as it might have the org in which is used to print the registry url,
@@ -101,9 +114,28 @@ func getUrl(registry bool) (string, error) {
 		return "", err
 	}
 
+	global, err := loadGlobalConfig()
+	if err != nil {
+		return "", err
+	}
+	cfg = withGlobalDefaults(cfg, global)
+
 	org, err := resolveOrg(cfg)
 	if err != nil {
 		return "", err
+	}
+
+	site, err := resolveSite(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	if site == siteTerrakube {
+		client, err := newTerrakubeClientFor(setting(cfg.TerrakubeAPIURL, "TFCOPEN_TERRAKUBE_API_URL"))
+		if err != nil {
+			return "", err
+		}
+		return buildTerrakubeURL(setting(cfg.TerrakubeURL, "TFCOPEN_TERRAKUBE_URL"), client, org, cfg, registry)
 	}
 
 	var uri string
@@ -119,6 +151,10 @@ func getUrl(registry bool) (string, error) {
 
 func hasKnownKeys(cfg *Config) bool {
 	return cfg.Workspace != "" || cfg.Search != "" || cfg.Project != ""
+}
+
+func hasSettingKeys(cfg *Config) bool {
+	return cfg.Org != "" || cfg.Site != "" || cfg.TerrakubeURL != "" || cfg.TerrakubeAPIURL != ""
 }
 
 func resolveOrg(cfg *Config) (string, error) {
@@ -168,6 +204,65 @@ type Config struct {
 	Search    string `yaml:"search"`
 	Project   string `yaml:"project"`
 	Org       string `yaml:"org"`
+	Site      string `yaml:"site"`
+
+	TerrakubeURL    string `yaml:"terrakube_url"`
+	TerrakubeAPIURL string `yaml:"terrakube_api_url"`
+}
+
+func globalConfigPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("finding home directory: %w", err)
+	}
+	return filepath.Join(home, ".tfcopen"), nil
+}
+
+// loadGlobalConfig reads ~/.tfcopen. A missing or empty file is not an error.
+func loadGlobalConfig() (*Config, error) {
+	path, err := globalConfigPath()
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(path)
+	if err != nil || info.Size() == 0 {
+		return &Config{}, nil
+	}
+	cfg, err := ReadConfig(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading global config %s: %w", path, err)
+	}
+	return cfg, nil
+}
+
+// withGlobalDefaults fills the org, site and terrakube settings from the global config
+// where the repo config doesn't set them. Workspace keys never come from the global config.
+func withGlobalDefaults(cfg, global *Config) *Config {
+	merged := Config{}
+	if cfg != nil {
+		merged = *cfg
+	}
+	if merged.Org == "" {
+		merged.Org = global.Org
+	}
+	if merged.Site == "" {
+		merged.Site = global.Site
+	}
+	if merged.TerrakubeURL == "" {
+		merged.TerrakubeURL = global.TerrakubeURL
+	}
+	if merged.TerrakubeAPIURL == "" {
+		merged.TerrakubeAPIURL = global.TerrakubeAPIURL
+	}
+	return &merged
+}
+
+// setting returns the config value, falling back to an env var.
+func setting(value, envVar string) string {
+	if value != "" {
+		return value
+	}
+	return os.Getenv(envVar)
 }
 
 // ReadConfig reads the configuration from the specified file.

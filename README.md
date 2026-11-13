@@ -29,7 +29,7 @@ To use the application, navigate to the directory containing your `.tfcopen` fil
 ./tfcopen
 ```
 
-`registry` or `-r` will open the private terraform registry pages. This uses the `org: ` field in the found `.tfcopen` file, or the `TFCOPEN_DEFAULT_ORG` environment variable.
+`registry` or `-r` will open the private terraform registry pages. This uses the `org:` field in the repo's `.tfcopen`, then `~/.tfcopen`, then the `TFCOPEN_DEFAULT_ORG` environment variable.
 
 ```bash
 ./tfcopen --registry
@@ -47,14 +47,36 @@ etc...
 ```
 
 ## Configuration
-The `.tfcopen` file should be structured as follows:
+A repo's `.tfcopen` file should be structured as follows:
 
 ```yaml
 workspace: <workspace-name>
 search: <search-string>
 project: <project-name>
-org: <organization-name>
+org: <organization-name>   # optional if set globally
+site: <tfc|terrakube>      # optional if set globally
 ```
+
+### Global defaults: `~/.tfcopen`
+
+Settings shared by every repo go in `~/.tfcopen`. A repo's `.tfcopen` overrides them.
+
+```yaml
+org: <organization-name>
+site: <tfc|terrakube>                                # defaults to tfc
+terrakube_url: https://terrakube-ui.example.com      # only needed for terrakube
+terrakube_api_url: https://terrakube-api.example.com # only needed for terrakube, /api/v1 is added if missing
+```
+
+The env vars `TFCOPEN_DEFAULT_ORG`, `TFCOPEN_DEFAULT_SITE`, `TFCOPEN_TERRAKUBE_URL` and `TFCOPEN_TERRAKUBE_API_URL` still work as a last fallback.
+
+## Terrakube
+
+`tfcopen` can also open [Terrakube](https://terrakube.io) workspaces. Terrakube links use IDs rather than names, so `tfcopen` looks the IDs up through the Terrakube API.
+
+The API token comes from `TFCOPEN_TERRAKUBE_TOKEN` if set. Otherwise the token saved by `terraform login <api-host>` is used, and if that is missing or expired `tfcopen` runs `terraform login` for you.
+
+Terrakube's workspace list page can't be opened pre-filtered, so `search:` works differently there: if exactly one workspace matches it is opened; if several match, each is printed with a clickable link and nothing is opened; if none match, the org's workspace list is opened.
 
 ## Contributing
 Contributions are welcome! Please open an issue or submit a pull request for any enhancements or bug fixes.
